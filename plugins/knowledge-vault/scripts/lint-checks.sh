@@ -17,7 +17,7 @@ wiki = f"{vault}/wiki"
 manifest_path = f"{vault}/raw/.manifest.json"
 agent_path = f"{vault}/agent.md"
 
-findings = {"stale": [], "missing_concepts": [], "orphaned": [], "thin": [], "duplicate_aliases": [], "agent_stale": []}
+findings = {"stale": [], "missing_concepts": [], "orphaned": [], "thin": [], "duplicate_aliases": [], "agent_stale": [], "originals": [], "trees": []}
 
 def parse_frontmatter(filepath):
     try:
@@ -122,6 +122,41 @@ for i in range(len(slugs)):
         if overlap:
             findings["duplicate_aliases"].append(f"{slugs[i]} <-> {slugs[j]}: shared aliases {overlap}")
 
+# Check 9: originals/ and tree.json integrity (v2.4)
+raw_dir = f"{vault}/raw"
+originals_dir = f"{vault}/originals"
+raw_files = glob.glob(f"{raw_dir}/*.md")
+raw_slug_set = set()
+for rf in raw_files:
+    slug = os.path.splitext(os.path.basename(rf))[0]
+    raw_slug_set.add(slug)
+    fm, _ = parse_frontmatter(rf)
+    op = fm.get('original_path', '')
+    if op:
+        # Resolve relative paths against vault root
+        full = op if os.path.isabs(op) else f"{vault}/{op}"
+        if not os.path.isfile(full):
+            findings["originals"].append(f"raw/{slug}.md: original_path '{op}' not found on disk")
+    has_tree = str(fm.get('has_tree', '')).lower() == 'true'
+    if has_tree:
+        tree_path = f"{raw_dir}/{slug}.tree.json"
+        if not os.path.isfile(tree_path):
+            findings["trees"].append(f"raw/{slug}.md: has_tree:true but {slug}.tree.json missing")
+        else:
+            # quick JSON sanity
+            try:
+                with open(tree_path) as f:
+                    json.load(f)
+            except Exception as e:
+                findings["trees"].append(f"raw/{slug}.tree.json: invalid JSON ({e})")
+
+# Orphan originals: file in originals/ with no matching raw/<slug>.md
+if os.path.isdir(originals_dir):
+    for fname in os.listdir(originals_dir):
+        slug = os.path.splitext(fname)[0]
+        if slug and slug not in raw_slug_set:
+            findings["originals"].append(f"originals/{fname}: no matching raw/{slug}.md")
+
 # Check 8: Agent staleness
 if os.path.exists(agent_path):
     try:
@@ -138,7 +173,11 @@ if os.path.exists(agent_path):
         pass
 
 # Count totals
-warnings = len(findings["stale"]) + len(findings["missing_concepts"]) + len(findings["orphaned"]) + len(findings["duplicate_aliases"]) + len(findings["agent_stale"])
+warnings = (
+    len(findings["stale"]) + len(findings["missing_concepts"]) + len(findings["orphaned"])
+    + len(findings["duplicate_aliases"]) + len(findings["agent_stale"])
+    + len(findings["originals"]) + len(findings["trees"])
+)
 suggestions = len(findings["thin"])
 
 # Output report
@@ -178,6 +217,18 @@ if findings["duplicate_aliases"]:
 if findings["agent_stale"]:
     report.append(f"### Check 8: Agent Staleness ({len(findings['agent_stale'])} found) — Warning")
     for f in findings["agent_stale"]:
+        report.append(f"- {f}")
+    report.append("")
+
+if findings["originals"]:
+    report.append(f"### Check 9a: Originals integrity ({len(findings['originals'])} found) — Warning")
+    for f in findings["originals"]:
+        report.append(f"- {f}")
+    report.append("")
+
+if findings["trees"]:
+    report.append(f"### Check 9b: Tree integrity ({len(findings['trees'])} found) — Warning")
+    for f in findings["trees"]:
         report.append(f"- {f}")
     report.append("")
 

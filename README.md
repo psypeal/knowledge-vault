@@ -3,7 +3,7 @@
   <p align="center">
     <strong>A local, LLM-powered knowledge base that ingests from Zotero, academic databases, and the web.</strong>
     <br />
-    Pull papers from your Zotero library. Batch-search PubMed, arXiv, Scholar, Consensus. Enrich reference-only items with open-access PDFs. Compile a cross-referenced wiki. Query your knowledge. Browse in Obsidian.
+    Pull papers from your Zotero library. Batch-search PubMed, arXiv, Scholar, Consensus. Enrich reference-only items with open-access PDFs. Preserve every original PDF under bibliographic slugs and auto-build a hierarchical PageIndex tree per document. Compile a cross-referenced wiki. Query through a 4-tier reasoning cascade (index → wiki → tree → page-level extraction). Browse in Obsidian.
   </p>
   <p align="center">
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
@@ -40,8 +40,10 @@ flowchart LR
     CL["Obsidian\nWeb Clipper"] -->|auto| CLP["Clippings/"]
     CLP -->|"/knowledge-vault:process"| R
     U -.->|"/knowledge-vault:enrich-references"| R
+    R -->|"PageIndex\n(per PDF)"| TR["raw/<slug>.tree.json\noriginals/<slug>.pdf"]
     R -->|"/knowledge-vault:compile"| W["wiki/\nsummaries/\nconcepts/\nindex.md"]
-    W -->|"/knowledge-vault:query"| ANS["Grounded\nAnswers"]
+    W -->|"/knowledge-vault:query\n(4-tier cascade)"| ANS["Grounded\nAnswers"]
+    TR -.->|tier 3+4| ANS
     W -->|"/knowledge-vault:lint"| H["Health\nReport"]
     W -->|browse| O["Obsidian\nGraph View"]
 ```
@@ -197,7 +199,7 @@ See [Migration](#migration) for full details.
 | **`/knowledge-vault:collect <query>`** | Batch search academic databases and selectively ingest results |
 | **`/knowledge-vault:setup-sources`** | Configure research MCP servers for academic collection |
 | **`/knowledge-vault:compile`** | Compile pending sources into wiki summaries and concept articles |
-| **`/knowledge-vault:lint`** | Run 8 health checks on the wiki |
+| **`/knowledge-vault:lint`** | Run 10 health checks on the wiki (incl. originals + tree integrity) |
 | **`/knowledge-vault:cleanup`** | Audit and actively fix article quality issues |
 | **`/knowledge-vault:query <question>`** | Ask a question grounded in your vault's knowledge |
 | **`/knowledge-vault:process`** | Batch: ingest all web clips + compile everything |
@@ -418,6 +420,67 @@ Unpaywall indexes roughly 40-50% of all DOIs, with stronger coverage in biomedic
 
 <br />
 
+## PageIndex Tree Indexing *(opt-in, bundled)*
+
+Every PDF that lands in the vault — whether from Zotero, Unpaywall/Sci-Hub enrichment, manual ingest, or the inbox — is preserved under `originals/<slug>.<ext>` (renamed by author/org + year + keyword) and run through [VectifyAI/PageIndex](https://github.com/VectifyAI/PageIndex) to produce a hierarchical "table of contents" tree at `raw/<slug>.tree.json`. The tree drives a finer-grained query path: instead of dumping a whole PDF into context, `/knowledge-vault:query` reasons over the tree to identify the *single section* most likely to hold the answer, then extracts only those pages.
+
+### What a tree looks like
+
+```jsonc
+[
+  {
+    "title": "Methods",
+    "node_id": "0003",
+    "start_index": 4,
+    "end_index": 7,
+    "summary": "Randomized double-blind trial. Statin vs placebo in 2,847 adults aged 55-75 over 4 years…",
+    "nodes": [
+      { "title": "Study population", "start_index": 4, "end_index": 5, "summary": "..." },
+      { "title": "Outcome measures", "start_index": 5, "end_index": 7, "summary": "..." }
+    ]
+  },
+  { "title": "Results", "node_id": "0004", "start_index": 8, "end_index": 14, "summary": "..." }
+]
+```
+
+### Slug rules
+
+| Type | Slug pattern | Example |
+|------|--------------|---------|
+| `paper` | `<first-author>-<year>-<keyword>` | `vaswani-2017-attention` |
+| `report` / `manual` / `filing` / `guideline` | `<org-abbrev>-<year>-<keyword>` | `who-2023-tuberculosis`, `fda-2024-bioequivalence` |
+| `article` / `repo` / `dataset` / `meeting` / `notes` / `clip` | title-based (as in v2.3) | `karpathy-llm-os-talk` |
+
+Collisions get `-2`, `-3` suffixes. Original incoming filenames are preserved in frontmatter (`original_filename:`) for provenance.
+
+### Setup
+
+PageIndex is **bundled** at `vendor/PageIndex/` inside the plugin. To enable it:
+
+```
+/knowledge-vault:setup-sources
+```
+
+Select **PageIndex**. The command then:
+
+1. Verifies `python3` and runs `pip3 install -r vendor/PageIndex/requirements.txt` (one-time).
+2. Confirms `ANTHROPIC_API_KEY` is set; writes a `.env` file inside `vendor/PageIndex/` so the runner can authenticate.
+3. Smoke-tests the runner.
+
+Tree generation routes through [LiteLLM](https://docs.litellm.ai/docs/providers) → **Claude Sonnet 4.6** (configured in `vendor/PageIndex/pageindex/config.yaml`). A typical 15-page paper takes 30-45 seconds and a few cents of API cost; a 100-page report runs ~1-2 minutes.
+
+If PageIndex isn't set up, the vault works exactly as in v2.3 (flat condense). If it is set up but a tree build fails for a specific PDF, that item silently falls back to flat condense — `has_tree: false` records this so a later retry can rebuild.
+
+### Disable
+
+```bash
+rm "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env"
+```
+
+Subsequent ingests fall back to flat `pdftotext` + condense automatically. No command changes needed.
+
+<br />
+
 ## Advanced: Sci-Hub (opt-in, per-project)
 
 Sci-Hub is an optional **peer source** for `/knowledge-vault:enrich-references`, routed through the community [riichard/Sci-Hub-MCP-Server](https://github.com/riichard/Sci-Hub-MCP-Server). It is **strictly opt-in and per-project** — never enabled by default, never installed user-globally. You can use it standalone, or alongside Unpaywall (in which case Unpaywall runs first per item and Sci-Hub handles what it misses).
@@ -478,8 +541,15 @@ your-project/
   ├── agent.md             Learned retrieval intelligence (auto-maintained)
   ├── sources.json         Configured research MCP servers
   ├── Clippings/           Obsidian Web Clipper default folder
-  ├── raw/                 Ingested sources with YAML frontmatter
+  ├── inbox/               Manually-dropped artifacts awaiting /knowledge-vault:process
+  ├── originals/           Preserved source files renamed to <slug>.<ext>  (NEW in v2.4)
+  │   ├── vaswani-2017-attention.pdf
+  │   ├── who-2023-tuberculosis.pdf
+  │   └── …
+  ├── raw/                 Extracted bodies + tree sidecars
   │   ├── .manifest.json   Source registry
+  │   ├── <slug>.md        Markdown body (tree-derived outline when has_tree)
+  │   ├── <slug>.tree.json PageIndex tree sidecar  (NEW in v2.4)
   │   └── arxiv-papers/    arXiv PDFs (if arXiv server configured)
   ├── wiki/
   │   ├── index.md         Master routing index
@@ -527,17 +597,24 @@ You can edit `preferences.md` manually anytime. Claude always picks up the lates
 
 <br />
 
-## 3-Tier Query Routing
+## 4-Tier Query Routing
 
-Queries stay efficient at any vault size. Claude never loads everything -- it reads the index, picks what's relevant, and drills down only when needed.
+Queries stay efficient at any vault size. Claude never loads everything — it reads the index, picks what's relevant, and drills down only when needed. **Compiled knowledge handles the easy 80% at tier 2; trees route the hard 20% straight to the relevant pages instead of dumping the whole document into context.**
 
 ```
-Tier 1  ─────  wiki/index.md           Always read first (one-line per entry)
+Tier 1  ─────  wiki/index.md            Always read first (one-line per entry)
                     │
-Tier 2  ─────  summaries/ + concepts/  Read relevant matches (200-500 words each)
+Tier 2  ─────  summaries/ + concepts/   Read relevant matches (200-500 words each)
+                    │              ◄─── Most queries end here.
                     │
-Tier 3  ─────  raw/                    Full source text (only when depth needed)
+Tier 3  ─────  raw/<slug>.tree.json     Reason over PageIndex tree → identify
+                    │                    section + page range (NEW in v2.4)
+                    │
+Tier 4  ─────  pdftotext -f S -l E      Extract just those pages from
+               originals/<slug>.pdf      originals/ — quote the precise figure (NEW in v2.4)
 ```
+
+**Graceful degradation**: vaults from v2.3.0 have no trees and no `originals/`. Tier 3 silently skips; tier 4 falls back to reading `raw/<slug>.md`. The query still works.
 
 <br />
 
@@ -627,7 +704,7 @@ Without the agent, every query scans the full index and reads 6-8 candidate arti
 
 ## Lint Checks
 
-`/knowledge-vault:lint` runs 8 health checks to keep your knowledge base consistent:
+`/knowledge-vault:lint` runs 10 health checks to keep your knowledge base consistent:
 
 | Check | What it catches | Severity |
 |:------|:----------------|:---------|
@@ -639,6 +716,8 @@ Without the agent, every query scans the full index and reads 6-8 candidate arti
 | **Duplicates** | Overlapping concept coverage | Warning |
 | **Gap analysis** | Missing topics that would strengthen the knowledge graph | Suggestion |
 | **Agent staleness** | agent.md references deleted concepts or sources | Warning |
+| **Originals integrity** | `original_path:` points to a missing file, or orphan in `originals/` without a matching raw item | Warning |
+| **Tree integrity** | Items with `has_tree: true` whose `<slug>.tree.json` is missing or malformed | Warning |
 
 <br />
 
@@ -746,6 +825,18 @@ That's it. Your existing `.vault/` directories are fully compatible. No data mig
 > /knowledge-vault:setup-sources
 ```
 
+### v2.3 → v2.4 (preserved originals + tree indexing)
+
+Existing v2.3 vaults work unchanged. New ingests automatically get `originals/<slug>.<ext>` + `raw/<slug>.tree.json`; old items keep their v2.3 layout. To opportunistically backfill the old items:
+
+```
+> /knowledge-vault:cleanup
+```
+
+Cleanup detects raw items missing `original_path:` and recovers PDFs through the cleanest available channel — Zotero MCP (when `zotero_key` is on file), Unpaywall/Sci-Hub (when there's a DOI), or direct download (when `source:` points at a PDF). It preserves each PDF under the **existing** v2.3 slug (no rename — keeps `[[wikilinks]]` intact), builds a PageIndex tree if PageIndex is set up, and updates frontmatter only — the markdown body is left alone. Idempotent; re-runnable.
+
+Items with no recoverable source are flagged. Slug heterogeneity (old title-based + new `<author-year-keyword>` style) is expected and benign.
+
 <br />
 
 ## Comparison
@@ -770,7 +861,8 @@ That's it. Your existing `.vault/` directories are fully compatible. No data mig
 - `uv` *(optional, for arXiv and Zotero MCP servers)*
 - `npx` / Node.js *(optional, for Paper Search MCP server)*
 - [Zotero](https://www.zotero.org) 7+ *(optional, for `/knowledge-vault:ingest-zotero`)*
-- `poppler-utils` *(optional, provides `pdftotext` for `/knowledge-vault:enrich-references`)*
+- `poppler-utils` *(optional, provides `pdftotext` for `/knowledge-vault:enrich-references` and tier-4 query extraction)*
+- `python3` + `pip3` and `ANTHROPIC_API_KEY` *(optional, for PageIndex tree indexing — see [PageIndex Tree Indexing](#pageindex-tree-indexing-opt-in-bundled))*
 - [Obsidian](https://obsidian.md) *(optional, for browsing)*
 
 <br />
@@ -784,6 +876,7 @@ That's it. Your existing `.vault/` directories are fully compatible. No data mig
 - [54yyyu/zotero-mcp](https://github.com/54yyyu/zotero-mcp) -- Zotero MCP server powering `/knowledge-vault:ingest-zotero`
 - [Unpaywall](https://unpaywall.org) -- open-access PDF discovery API powering `/knowledge-vault:enrich-references`
 - [riichard/Sci-Hub-MCP-Server](https://github.com/riichard/Sci-Hub-MCP-Server) -- community MCP server used by the optional, per-project Sci-Hub source (a fork of JackKuo666's original)
+- [VectifyAI/PageIndex](https://github.com/VectifyAI/PageIndex) -- vectorless reasoning-based RAG; vendored under `vendor/PageIndex/` (MIT) to power per-PDF tree indexing and tier-3/4 query routing
 - [Galaxy-Dawn/claude-scholar](https://github.com/Galaxy-Dawn/claude-scholar) -- inspiration for the Zotero → knowledge-base workflow
 
 ## License

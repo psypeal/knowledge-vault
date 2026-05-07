@@ -15,7 +15,10 @@ if [ -d "$VAULT_DIR" ]; then
 fi
 
 # Create directory structure
-mkdir -p "$VAULT_DIR"/{Clippings,raw,wiki/{concepts,summaries,outputs},templates}
+# v2.4: originals/ holds preserved source artifacts (PDF, EPUB, HTML, etc.)
+# whose extracted content lives as raw/<slug>.md, with optional raw/<slug>.tree.json
+# (PageIndex tree).
+mkdir -p "$VAULT_DIR"/{Clippings,originals,raw,wiki/{concepts,summaries,outputs},templates}
 
 # Empty manifest
 cat > "$VAULT_DIR/raw/.manifest.json" << 'EOF'

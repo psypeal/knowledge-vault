@@ -10,7 +10,9 @@ description: Run health checks on the wiki
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/lint-checks.sh"
 ```
 
-This runs checks 2-6 and 8 (stale, missing concepts, orphaned, thin, duplicate aliases, agent staleness) by scanning frontmatter and file existence. Save the output.
+This runs checks 2-6, 8, and 9 (stale, missing concepts, orphaned, thin, duplicate aliases, agent staleness, **originals + tree integrity**) by scanning frontmatter and file existence. Save the output.
+
+Check 9a flags raw items whose `original_path:` points to a missing file, and orphan files in `originals/` without a matching `raw/<slug>.md`. Check 9b flags items with `has_tree: true` whose `tree.json` is missing or invalid.
 
 **Step 2 — Claude checks (only if vault has 5+ concepts):**
 

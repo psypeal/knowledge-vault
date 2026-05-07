@@ -30,7 +30,14 @@ The collection name or keyword is in `$ARGUMENTS`. Requires the `zotero-mcp` ser
    b. **Fetch full text** (if item has a PDF attachment): `mcp__zotero__zotero_get_item_fulltext`. If unavailable, that's fine — many Zotero items are reference-only, and the abstract alone carries real signal for compile. Record `has_fulltext = false` and proceed.
    c. **Fetch annotations** (if user has highlighted the PDF): `mcp__zotero__zotero_get_annotations`. Include them in the Key Findings section when present. Skip silently if none.
 
-   d. **Generate slug** from the title: lowercase, hyphens for spaces, max 60 chars, strip punctuation.
+   d. **Derive a bibliographic slug** using the metadata response:
+      - For `paper` (default): use `<first-author-lastname>-<year>-<keyword>`. The keyword is 1-2 short title words (drop stopwords: a/an/the/of/in/on/and/for).
+      - For `report` / `manual` / `filing` / `guideline` (institutional items in Zotero — usually `webpage` or `report` itemType): use `<org-abbrev>-<year>-<keyword>` (e.g., `who-2023-tuberculosis`). Use your judgment for org abbreviations (`World Health Organization` → `who`).
+      - Falls back to title-based slug only if neither author nor org is present.
+      - Run the helper to sanitize and disambiguate:
+        ```bash
+        SLUG=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/derive-slug.sh" "<entity>" "<year>" "<keyword>" .vault)
+        ```
 
    e. **Extract fields** from the metadata response:
       - `zotero_key` — the item's Zotero key
@@ -44,6 +51,12 @@ The collection name or keyword is in `$ARGUMENTS`. Requires the `zotero-mcp` ser
       ```bash
       bash "${CLAUDE_PLUGIN_ROOT}/scripts/ingest-zotero.sh" "<slug>" "<title>" "<zotero_key>" "<citekey>" "<doi>" "<year>" "<authors_csv>" [tags...]
       ```
+
+   f2. **Preserve the original PDF + (optionally) build tree** — only when Zotero exposes a local PDF path or returns the file bytes:
+      - Copy the PDF to `.vault/originals/<slug>.pdf` (rename to slug). Record `original_path: originals/<slug>.pdf` and the incoming filename in `original_filename:` via `update-frontmatter.sh`.
+      - **If PageIndex is set up**, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/build-tree.sh" .vault/originals/<slug>.pdf <slug> .vault`.
+      - On tree success: render the body via `render-tree-outline.sh` (skip step g's flat condense for sections that the tree covers; metadata still goes in via step g).
+      - On tree failure or PageIndex absent: continue to step g (flat condense from fulltext + annotations).
 
    g. **Condense content** into the raw file body using Edit tool. Apply the same structured extraction as `/knowledge-vault:ingest` (cap at ~800-1200 words):
       ```markdown
@@ -83,7 +96,8 @@ The collection name or keyword is in `$ARGUMENTS`. Requires the `zotero-mcp` ser
 
 ## Notes
 
-- **Source of truth**: Zotero owns the PDF, metadata, and annotations. The vault's raw file is a condensed extraction — re-fetchable via the `zotero_key` in frontmatter.
+- **Source of truth**: Zotero owns the PDF, metadata, and annotations. The vault now keeps a *renamed copy* of the PDF at `originals/<slug>.pdf` for in-vault audit and PageIndex tree-building, but Zotero remains the canonical source — re-fetchable via the `zotero_key` in frontmatter.
+- **Slug stability**: The slug is `<author>-<year>-<keyword>` for papers and `<org>-<year>-<keyword>` for reports. `derive-slug.sh` automatically suffixes `-2`, `-3` on collisions, so existing files are never overwritten.
 - **Duplicates**: If a slug already exists in `raw/`, `ingest-zotero.sh` reports "Skipped" and continues. Re-running the command is safe.
 - **Webpage items**: Zotero `webpage` items are valid — they still have title, URL, and sometimes fulltext. Treat them the same way.
 - **Context note**: Report only the per-item line "Ingested <title>" and the final count. Do not echo file contents or frontmatter.

@@ -3,11 +3,17 @@
 # Checks settings.json permissions and .claude.json mcpServers.
 # Output: JSON listing detected and available-but-not-configured servers.
 
+# Resolve plugin root so we can probe the vendored PageIndex install state.
+PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+export PLUGIN_DIR
+
 python3 -c "
-import json, os
+import json, os, shutil, subprocess
 
 detected = []
 available = []
+plugin_dir = os.environ.get('PLUGIN_DIR', '')
+pageindex_dir = os.path.join(plugin_dir, 'vendor', 'PageIndex') if plugin_dir else ''
 
 # Check settings.json for allowed MCP tools (built-in Claude.ai servers)
 settings_path = os.path.expanduser('~/.claude/settings.json')
@@ -65,6 +71,52 @@ if os.environ.get('UNPAYWALL_EMAIL'):
         'tools': ['(HTTP API; enables /knowledge-vault:enrich-references)'],
         'add_command': None
     })
+
+# Check for PageIndex (bundled python tool; not an MCP)
+def _pageindex_status():
+    if not pageindex_dir or not os.path.isfile(os.path.join(pageindex_dir, 'run_pageindex.py')):
+        return None  # not vendored
+    has_python = shutil.which('python3') is not None
+    has_deps = False
+    if has_python:
+        try:
+            r = subprocess.run(
+                ['python3', '-c', 'import litellm, pymupdf, dotenv, yaml'],
+                capture_output=True
+            )
+            has_deps = (r.returncode == 0)
+        except Exception:
+            has_deps = False
+    has_key = bool(os.environ.get('ANTHROPIC_API_KEY')) or os.path.isfile(os.path.join(pageindex_dir, '.env'))
+    return {'python': has_python, 'deps': has_deps, 'key': has_key}
+
+pi = _pageindex_status()
+if pi is not None:
+    if pi['python'] and pi['deps'] and pi['key']:
+        detected.append({
+            'id': 'pageindex',
+            'name': 'PageIndex (tree indexing)',
+            'type': 'bundled-py',
+            'enabled': True,
+            'tools': ['(local Python; auto-runs on every PDF ingest)'],
+            'add_command': None
+        })
+    else:
+        missing = []
+        if not pi['python']:
+            missing.append('python3')
+        if not pi['deps']:
+            missing.append('pip deps')
+        if not pi['key']:
+            missing.append('ANTHROPIC_API_KEY')
+        available.append({
+            'id': 'pageindex',
+            'name': 'PageIndex (tree indexing)',
+            'type': 'bundled-py',
+            'note': f'Bundled at vendor/PageIndex; missing: {\", \".join(missing)}. When set up, every ingested PDF gets a hierarchical tree index for finer-grained query routing.',
+            'add_command': 'See /knowledge-vault:setup-sources → PageIndex',
+            'api_key': True
+        })
 
 # Available servers (not yet detected)
 recommended = [

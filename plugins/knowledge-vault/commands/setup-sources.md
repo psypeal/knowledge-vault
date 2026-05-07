@@ -13,6 +13,7 @@ description: Configure research MCP servers for academic collection
    - **Zotero** (enables `/knowledge-vault:ingest-zotero`): `uv tool install zotero-mcp-server && zotero-mcp setup`
    - **Unpaywall** (enables `/knowledge-vault:enrich-references`): `export UNPAYWALL_EMAIL=you@example.com` — free, no signup; add to your shell rc to persist
    - **Sci-Hub** *(opt-in, per-project — a source for `/knowledge-vault:enrich-references`, usable on its own or alongside Unpaywall)*: follow the short disclosure sub-procedure in step 4a below.
+   - **PageIndex** *(bundled, opt-in — auto-builds a hierarchical tree index for every ingested PDF; powers tier-3/4 of `/knowledge-vault:query`)*: follow the install sub-procedure in step 4b below.
 4. Let user approve which servers to add. Run approved commands.
 
    **4a. If the user selects Sci-Hub, follow this sub-procedure (do NOT install otherwise):**
@@ -56,6 +57,40 @@ description: Configure research MCP servers for academic collection
 
    viii. Tell the user: `Sci-Hub MCP installed and registered for this project. Restart Claude Code so the new MCP tools are picked up, then re-run /knowledge-vault:enrich-references.`
 
+   **4b. If the user selects PageIndex, follow this sub-procedure (do NOT install otherwise):**
+
+   i. Verify the vendored PageIndex is present:
+      ```bash
+      test -f "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/run_pageindex.py" \
+        || { echo "PageIndex vendor missing — re-install the plugin"; exit 1; }
+      ```
+
+   ii. Verify `python3` is available (`command -v python3`); if missing, tell the user to install Python 3.10+ and skip.
+
+   iii. Install the Python dependencies (one-time, permission prompt):
+      ```bash
+      pip3 install -r "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/requirements.txt"
+      ```
+
+      If the user has multiple Python installs, suggest a venv: `python3 -m venv ~/.local/share/knowledge-vault/venv && ~/.local/share/knowledge-vault/venv/bin/pip install -r "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/requirements.txt"` — but install globally by default for simplicity.
+
+   iv. Confirm `ANTHROPIC_API_KEY` is set: `[ -n "$ANTHROPIC_API_KEY" ]`. If unset, tell the user to add `export ANTHROPIC_API_KEY=sk-ant-...` to their shell rc.
+
+   v. Write a `.env` file in the vendored directory so PageIndex can pick up the key when invoked from a non-interactive shell:
+      ```bash
+      cat > "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env" <<EOF
+      ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
+      EOF
+      chmod 600 "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env"
+      ```
+
+   vi. Smoke test: ensure the runner executes without error.
+      ```bash
+      python3 "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/run_pageindex.py" --help >/dev/null
+      ```
+
+   vii. Tell the user: `PageIndex set up. Every ingested PDF will now get a hierarchical tree index (raw/<slug>.tree.json) and a tree-derived markdown body. The originals/ folder preserves the source PDFs renamed by author-year-keyword.`
+
 5. Update `.vault/sources.json` with the new configuration.
 
 ## Notes
@@ -63,3 +98,5 @@ description: Configure research MCP servers for academic collection
 - **Project scope is intentional for Sci-Hub**: the `-s project` flag writes to this project's `.mcp.json` so Sci-Hub is never enabled across all projects by default. This differs from how the other recommended MCPs are typically added.
 - **No shell-rc edits**: the per-vault marker file (`.vault/.scihub-enabled`) is the opt-in gate, not an env var. The plugin does not modify `~/.bashrc` or `~/.zshrc`.
 - **Disable Sci-Hub later**: `rm .vault/.scihub-enabled && claude mcp remove scihub` from the project directory.
+- **Disable PageIndex later**: `rm "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env"`. Subsequent ingests fall back to flat `pdftotext`+condense automatically (no command changes required).
+- **PageIndex storage**: PDFs preserved across all vaults are renamed to `<author>-<year>-<keyword>.pdf` (or `<org>-<year>-<keyword>.pdf` for reports/manuals/filings/guidelines) and stored under each vault's `originals/` directory. Tree JSON sits at `raw/<slug>.tree.json`; the markdown body becomes a tree-derived outline.
