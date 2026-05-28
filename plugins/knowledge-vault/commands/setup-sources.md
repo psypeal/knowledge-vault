@@ -4,7 +4,7 @@ description: Configure research MCP servers for academic collection
 
 ## Procedure
 
-1. Run: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-mcp-sources.sh"` to detect installed and available research servers.
+1. Run: `bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/scripts/detect-mcp-sources.sh"` to detect installed and available research servers.
 2. Present results to user: which servers are installed (enabled) and which are available but not yet added.
 3. For servers not installed, show the add command:
    - **Consensus**: `claude mcp add --transport http consensus https://mcp.consensus.app/mcp`
@@ -61,7 +61,7 @@ description: Configure research MCP servers for academic collection
 
    i. Verify the vendored PageIndex is present:
       ```bash
-      test -f "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/run_pageindex.py" \
+      test -f "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/run_pageindex.py" \
         || { echo "PageIndex vendor missing — re-install the plugin"; exit 1; }
       ```
 
@@ -69,24 +69,24 @@ description: Configure research MCP servers for academic collection
 
    iii. Install the Python dependencies (one-time, permission prompt):
       ```bash
-      pip3 install -r "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/requirements.txt"
+      pip3 install -r "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/requirements.txt"
       ```
 
-      If the user has multiple Python installs, suggest a venv: `python3 -m venv ~/.local/share/knowledge-vault/venv && ~/.local/share/knowledge-vault/venv/bin/pip install -r "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/requirements.txt"` — but install globally by default for simplicity.
+      If the user has multiple Python installs, suggest a venv: `python3 -m venv ~/.local/share/knowledge-vault/venv && ~/.local/share/knowledge-vault/venv/bin/pip install -r "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/requirements.txt"` — but install globally by default for simplicity.
 
    iv. Confirm `ANTHROPIC_API_KEY` is set: `[ -n "$ANTHROPIC_API_KEY" ]`. If unset, tell the user to add `export ANTHROPIC_API_KEY=sk-ant-...` to their shell rc.
 
    v. Write a `.env` file in the vendored directory so PageIndex can pick up the key when invoked from a non-interactive shell:
       ```bash
-      cat > "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env" <<EOF
+      cat > "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/.env" <<EOF
       ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY
       EOF
-      chmod 600 "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env"
+      chmod 600 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/.env"
       ```
 
    vi. Smoke test: ensure the runner executes without error.
       ```bash
-      python3 "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/run_pageindex.py" --help >/dev/null
+      python3 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/run_pageindex.py" --help >/dev/null
       ```
 
    vii. Tell the user: `PageIndex set up. Every ingested PDF will now get a hierarchical tree index (raw/<slug>.tree.json) and a tree-derived markdown body. The originals/ folder preserves the source PDFs renamed by author-year-keyword.`
@@ -98,5 +98,5 @@ description: Configure research MCP servers for academic collection
 - **Project scope is intentional for Sci-Hub**: the `-s project` flag writes to this project's `.mcp.json` so Sci-Hub is never enabled across all projects by default. This differs from how the other recommended MCPs are typically added.
 - **No shell-rc edits**: the per-vault marker file (`.vault/.scihub-enabled`) is the opt-in gate, not an env var. The plugin does not modify `~/.bashrc` or `~/.zshrc`.
 - **Disable Sci-Hub later**: `rm .vault/.scihub-enabled && claude mcp remove scihub` from the project directory.
-- **Disable PageIndex later**: `rm "${CLAUDE_PLUGIN_ROOT}/vendor/PageIndex/.env"`. Subsequent ingests fall back to flat `pdftotext`+condense automatically (no command changes required).
+- **Disable PageIndex later**: `rm "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/vendor/PageIndex/.env"`. Subsequent ingests fall back to flat `pdftotext`+condense automatically (no command changes required).
 - **PageIndex storage**: PDFs preserved across all vaults are renamed to `<author>-<year>-<keyword>.pdf` (or `<org>-<year>-<keyword>.pdf` for reports/manuals/filings/guidelines) and stored under each vault's `originals/` directory. Tree JSON sits at `raw/<slug>.tree.json`; the markdown body becomes a tree-derived outline.

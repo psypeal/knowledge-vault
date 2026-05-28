@@ -1,0 +1,20 @@
+{
+  "name": "knowledge-vault",
+  "interface": {
+    "displayName": "Knowledge Vault"
+  },
+  "plugins": [
+    {
+      "name": "knowledge-vault",
+      "source": {
+        "source": "local",
+        "path": "./plugins/knowledge-vault"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

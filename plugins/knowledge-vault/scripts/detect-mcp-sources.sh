@@ -1,6 +1,6 @@
 #!/bin/bash
 # knowledge-vault: Detect available research MCP servers.
-# Checks settings.json permissions and .claude.json mcpServers.
+# Checks settings.json permissions and local .{claude|codex}.json mcpServers.
 # Output: JSON listing detected and available-but-not-configured servers.
 
 # Resolve plugin root so we can probe the vendored PageIndex install state.
@@ -15,39 +15,42 @@ available = []
 plugin_dir = os.environ.get('PLUGIN_DIR', '')
 pageindex_dir = os.path.join(plugin_dir, 'vendor', 'PageIndex') if plugin_dir else ''
 
-# Check settings.json for allowed MCP tools (built-in Claude.ai servers)
-settings_path = os.path.expanduser('~/.claude/settings.json')
-if os.path.exists(settings_path):
-    with open(settings_path) as f:
-        settings = json.load(f)
-    allowed = settings.get('permissions', {}).get('allow', [])
+# Check settings.json for allowed MCP tools (built-in AI-hosted research tools)
+for settings_path in [
+    os.path.expanduser('~/.claude/settings.json'),
+    os.path.expanduser('~/.codex/settings.json')
+]:
+    if os.path.exists(settings_path):
+        with open(settings_path) as f:
+            settings = json.load(f)
+        allowed = settings.get('permissions', {}).get('allow', [])
 
-    # PubMed (built-in)
-    if any('PubMed' in str(p) for p in allowed):
-        detected.append({
-            'id': 'pubmed-builtin',
-            'name': 'PubMed (Claude.ai)',
-            'type': 'builtin',
-            'enabled': True,
-            'tools': [p for p in allowed if 'PubMed' in str(p)],
-            'add_command': None
-        })
+        # PubMed (built-in)
+        if any('PubMed' in str(p) for p in allowed):
+            detected.append({
+                'id': 'pubmed-builtin',
+                'name': 'PubMed (AI-hosted)',
+                'type': 'builtin',
+                'enabled': True,
+                'tools': [p for p in allowed if 'PubMed' in str(p)],
+                'add_command': None
+            })
 
-    # Scholar Gateway (built-in)
-    if any('Scholar_Gateway' in str(p) or 'scholar-gateway' in str(p) for p in allowed):
-        detected.append({
-            'id': 'scholar-gateway',
-            'name': 'Scholar Gateway (Claude.ai)',
-            'type': 'builtin',
-            'enabled': True,
-            'tools': [p for p in allowed if 'Scholar' in str(p) or 'scholar' in str(p)],
-            'add_command': None
-        })
+        # Scholar Gateway (built-in)
+        if any('Scholar_Gateway' in str(p) or 'scholar-gateway' in str(p) for p in allowed):
+            detected.append({
+                'id': 'scholar-gateway',
+                'name': 'Scholar Gateway (AI-hosted)',
+                'type': 'builtin',
+                'enabled': True,
+                'tools': [p for p in allowed if 'Scholar' in str(p) or 'scholar' in str(p)],
+                'add_command': None
+            })
 
-# Check .claude.json for locally configured MCP servers
-for claude_json_path in ['.claude.json', os.path.expanduser('~/.claude.json')]:
-    if os.path.exists(claude_json_path):
-        with open(claude_json_path) as f:
+# Check local JSON config for configured MCP servers
+for mcp_json_path in ['.claude.json', os.path.expanduser('~/.claude.json'), '.codex.json', os.path.expanduser('~/.codex.json')]:
+    if os.path.exists(mcp_json_path):
+        with open(mcp_json_path) as f:
             cj = json.load(f)
         servers = cj.get('mcpServers', {})
         for name, config in servers.items():

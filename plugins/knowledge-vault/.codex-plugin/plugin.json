@@ -1,0 +1,42 @@
+{
+  "name": "knowledge-vault",
+  "version": "2.4.0",
+  "description": "Project-scoped knowledge base with ingestion (URL, Zotero, PubMed/Scholar), preserved originals + bibliographic slugs, PageIndex tree indexing per PDF, 4-tier reasoning-routed query, and Obsidian browsing.",
+  "author": {
+    "name": "psypeal"
+  },
+  "homepage": "https://github.com/psypeal/knowledge-vault",
+  "repository": "https://github.com/psypeal/knowledge-vault",
+  "license": "MIT",
+  "keywords": [
+    "knowledge-vault",
+    "knowledge",
+    "research",
+    "vault",
+    "obsidian",
+    "zotero",
+    "mcp",
+    "pageindex",
+    "scholar"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Knowledge Vault",
+    "shortDescription": "Project-scoped knowledge base for research workflows.",
+    "longDescription": "Knowledge Vault ingests papers, notes, and web clips into a structured `.vault` workspace, preserves originals, builds PageIndex trees for PDFs, and enables grounded querying in Obsidian-ready markdown.",
+    "developerName": "psypeal",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/psypeal/knowledge-vault",
+    "defaultPrompt": [
+      "Set up a new knowledge vault for this project",
+      "Collect and ingest recent relevant papers",
+      "Compile and query research insights with confidence"
+    ],
+    "brandColor": "#4F46E5"
+  }
+}

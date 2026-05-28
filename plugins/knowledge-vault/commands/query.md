@@ -40,9 +40,9 @@ Read that excerpt, then answer with the precise quote/figure/number, citing both
 
 ## When to do more
 
-**File the answer** ONLY when the user says "file it" or "save this". Then write to `wiki/outputs/` and run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/rebuild-index.sh"`.
+**File the answer** ONLY when the user says "file it" or "save this". Then write to `wiki/outputs/` and run `bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/scripts/rebuild-index.sh"`.
 
-**Update agent.md** ONLY after 3+ queries in the same session. Then read `${CLAUDE_PLUGIN_ROOT}/skills/vault-operations/references/agent-update-rules.md`.
+**Update agent.md** ONLY after 3+ queries in the same session. Then read `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/skills/vault-operations/references/agent-update-rules.md`.
 
 **Agent pre-routing** ONLY if `total_queries >= 5` in agent.md. Read it before the index.
 

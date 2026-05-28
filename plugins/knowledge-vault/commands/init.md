@@ -4,7 +4,7 @@ description: Initialize a knowledge vault in the current project
 
 ## Procedure
 
-1. Run: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/init.sh"`
+1. Run: `bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-.}}/scripts/init.sh"`
    - Creates `.vault/` with empty structure and appends instructions to CLAUDE.md.
 
 2. **Interview the user** for `.vault/preferences.md`. Ask one at a time; skip questions obvious from project context. If user says "skip" or wants defaults, generate sensible preferences from project context.

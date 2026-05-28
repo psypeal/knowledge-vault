@@ -21,7 +21,7 @@
 
 ## What It Does
 
-Knowledge Vault is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin that turns any project directory into a structured knowledge base. It **batch-ingests from your Zotero library** and from academic databases (PubMed, arXiv, Scholar Gateway, Consensus, Paper Search) via MCP servers — then compiles the raw sources into a cross-referenced wiki you can query.
+Knowledge Vault is a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and Codex plugin that turns any project directory into a structured knowledge base. It **batch-ingests from your Zotero library** and from academic databases (PubMed, arXiv, Scholar Gateway, Consensus, Paper Search) via MCP servers — then compiles the raw sources into a cross-referenced wiki you can query.
 
 ```mermaid
 flowchart LR
@@ -48,24 +48,24 @@ flowchart LR
     W -->|browse| O["Obsidian\nGraph View"]
 ```
 
-**Claude maintains all wiki content. You browse and query -- never edit directly.**
+**Claude and Codex maintain all wiki content. You browse and query -- never edit directly.**
 
 <br />
 
 ## Install
 
-### New install
+### New install (Claude Code)
 
 **Step 1** — Add the marketplace (one time only):
 
 ```bash
-/plugin marketplace add psypeal/claude-knowledge-vault
+/plugin marketplace add psypeal/knowledge-vault
 ```
 
 **Step 2** — Install the plugin:
 
 ```bash
-/plugin install knowledge-vault@claude-knowledge-vault
+/plugin install knowledge-vault@knowledge-vault
 ```
 
 **Step 3** — Reload:
@@ -81,7 +81,7 @@ No config, no dependencies, no API keys.
 When a new version is released, refresh the marketplace to pull the latest:
 
 ```bash
-/plugin marketplace update claude-knowledge-vault
+/plugin marketplace update knowledge-vault
 ```
 
 Then reload so the new commands, scripts, and fixes take effect:
@@ -90,12 +90,28 @@ Then reload so the new commands, scripts, and fixes take effect:
 /reload-plugins
 ```
 
-If auto-update is enabled for this marketplace, the plugin updates automatically during the marketplace refresh. Otherwise, toggle it via `/plugin` → **Marketplaces** → select `claude-knowledge-vault` → **Enable auto-update**.
+If auto-update is enabled for this marketplace, the plugin updates automatically during the marketplace refresh. Otherwise, toggle it via `/plugin` → **Marketplaces** → select `knowledge-vault` → **Enable auto-update**.
+
+### New install (Codex)
+
+**Step 1** — Add the marketplace:
+
+```bash
+codex plugin marketplace add psypeal/knowledge-vault
+```
+
+**Step 2** — Install the plugin:
+
+```bash
+codex plugin add knowledge-vault@knowledge-vault
+```
+
+Then open the plugin in the Codex app and accept the install prompt.
 
 ### Uninstall
 
 ```bash
-/plugin uninstall knowledge-vault@claude-knowledge-vault
+/plugin uninstall knowledge-vault@knowledge-vault
 ```
 
 To uninstall from a specific scope, use the `/plugin` **Installed** tab — select the plugin and choose **Uninstall**.
@@ -112,11 +128,11 @@ rm -rf ~/.claude/skills/knowledge-vault
 Then in Claude Code:
 
 ```bash
-/plugin marketplace add psypeal/claude-knowledge-vault
+/plugin marketplace add psypeal/knowledge-vault
 ```
 
 ```bash
-/plugin install knowledge-vault@claude-knowledge-vault
+/plugin install knowledge-vault@knowledge-vault
 ```
 
 ```bash
@@ -802,11 +818,11 @@ rm -rf ~/.claude/skills/knowledge-vault
 **Step 2** -- Install the plugin (in Claude Code):
 
 ```bash
-/plugin marketplace add psypeal/claude-knowledge-vault
+/plugin marketplace add psypeal/knowledge-vault
 ```
 
 ```bash
-/plugin install knowledge-vault@claude-knowledge-vault
+/plugin install knowledge-vault@knowledge-vault
 ```
 
 ```bash
