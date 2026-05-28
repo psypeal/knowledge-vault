@@ -54,6 +54,8 @@ flowchart LR
 
 ## Install
 
+Release notes are tracked in the [Changelog](./CHANGELOG.md).
+
 ### New install (Claude Code)
 
 **Step 1** — Add the marketplace (one time only):
